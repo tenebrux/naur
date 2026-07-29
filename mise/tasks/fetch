@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Download FynxLabs release packages (dusk, umbra, ember, rwr) into x86_64/"
+#MISE description="Download tenebrux release packages (dusk, umbra, ember, rwr) into x86_64/"
 
 set -euo pipefail
 
@@ -106,10 +106,10 @@ download_release() {
     echo "    Stored: $(ls "${REPO_DIR}/${pkgname}-"*.pkg.tar.zst | head -1 | xargs basename)"
 }
 
-# ── Download FynxLabs packages ──────────────────────────────────────────────
-download_release "FynxLabs/dusk"  "dusk_*_linux_amd64.pkg.tar.zst"  "dusk"
-download_release "FynxLabs/umbra" "umbra_*_linux_amd64.pkg.tar.zst" "umbra"
-download_release "FynxLabs/ember" "ember_*_linux_amd64.pkg.tar.zst" "ember"
+# ── Download tenebrux packages ──────────────────────────────────────────────
+download_release "tenebrux/dusk"  "dusk_*_linux_amd64.pkg.tar.zst"  "dusk"
+download_release "tenebrux/umbra" "umbra_*_linux_amd64.pkg.tar.zst" "umbra"
+download_release "tenebrux/ember" "ember_*_linux_amd64.pkg.tar.zst" "ember"
 download_release "FynxLabs/rwr"   "rwr_*_linux_amd64.pkg.tar.zst"   "rwr"
 
-echo "==> FynxLabs packages fetched."
+echo "==> tenebrux packages fetched."

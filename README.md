@@ -2,7 +2,7 @@
 
 > naur, not the aur.
 
-Pacman repository for FynxLabs/Tenebrux packages, hosted on GitHub Pages.
+Pacman repository for tenebrux/Tenebrux packages, hosted on GitHub Pages.
 Serves pre-built packages so installs and updates never depend on the AUR at
 install time or a single third-party server.
 
@@ -13,7 +13,7 @@ Add to `/etc/pacman.conf`:
 ```ini
 [naur]
 SigLevel = Optional TrustAll
-Server = https://pkgs.tenebrux.com/$arch/
+Server = https://tenebrux.github.io/naur/$arch/
 ```
 
 Then:
@@ -27,9 +27,9 @@ sudo pacman -S dusk umbra ember rwr nody-greeter shikai-theme
 
 | Package | Source | Why it's here |
 |---------|--------|---------------|
-| `dusk` | github.com/FynxLabs/dusk releases | Panel — no AUR package |
-| `umbra` | github.com/FynxLabs/umbra releases | Installer — no AUR package |
-| `ember` | github.com/FynxLabs/ember releases | Clipboard/notifications — no AUR package |
+| `dusk` | github.com/tenebrux/dusk releases | Panel — no AUR package |
+| `umbra` | github.com/tenebrux/umbra releases | Installer — no AUR package |
+| `ember` | github.com/tenebrux/ember releases | Clipboard/notifications — no AUR package |
 | `rwr` | github.com/FynxLabs/rwr releases | Config management — no AUR package |
 | `shikai-theme` | AUR (rebuilt) | Greeter theme — pre-built so installs don't need yay/AUR at install time |
 
@@ -44,7 +44,7 @@ sudo pacman -S dusk umbra ember rwr nody-greeter shikai-theme
 
 ```bash
 mise install          # install tools
-mise run fetch        # download FynxLabs release packages
+mise run fetch        # download tenebrux release packages
 mise run fetch-aur    # build AUR packages (nody-greeter, shikai-theme)
 mise run build        # regenerate repo database (repo-add)
 mise run publish      # push to gh-pages branch (live site updates)

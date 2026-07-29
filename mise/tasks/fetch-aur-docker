@@ -26,7 +26,17 @@ for pkg in "${PKGS[@]}"; do
     sudo -u builder git clone --depth 1 "https://aur.archlinux.org/${pkg}.git" "${BUILD_DIR}/${pkg}"
     # Strip debug packages — they bloat the repo past GitHub's 100MB limit
     # and serve no purpose in a binary package mirror.
-    sudo -u builder bash -c "cd '${BUILD_DIR}/${pkg}' && makepkg -s --needed --noconfirm --noconfirm"
+    #
+    # Build failures are NON-FATAL. nody-greeter is broken on current Arch:
+    # npm 12 blocks electron's postinstall, so electron/dist is never populated
+    # and nody-greeter's own build.js crashes on `du` (exit 4). It's also too
+    # large for GitHub Pages (see the 50MB check below) and is built into the
+    # ISO's local repo instead. Letting it fail-and-skip keeps the nightly
+    # publishing the remaining packages instead of aborting before repo-add.
+    if ! sudo -u builder bash -c "cd '${BUILD_DIR}/${pkg}' && makepkg -s --needed --noconfirm --noconfirm"; then
+        echo "==> WARNING: ${pkg} build failed - skipping. Repo will publish with remaining packages."
+        continue
+    fi
 
     rm -f "${OUT_DIR}/${pkg}-"*.pkg.tar.zst
     # Copy only non-debug packages under 50MB (GitHub's recommended max).

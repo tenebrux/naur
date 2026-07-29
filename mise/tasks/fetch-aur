@@ -32,8 +32,13 @@ for pkg in "${PKGS[@]}"; do
     echo "==> Building ${pkg} from the AUR..."
     git clone --depth 1 "https://aur.archlinux.org/${pkg}.git" "${BUILD_DIR}/${pkg}"
     # -s syncs deps; --needed avoids reinstall. AUR-on-AUR deps (shikai → nody)
-    # are satisfied by installing the prior build.
-    (cd "${BUILD_DIR}/${pkg}" && makepkg -s --needed --noconfirm)
+    # are satisfied by installing the prior build. Build failures are non-fatal
+    # (see fetch-aur-docker): nody-greeter is broken on current Arch and too
+    # large for naur anyway, so skip it and keep publishing the rest.
+    if ! (cd "${BUILD_DIR}/${pkg}" && makepkg -s --needed --noconfirm); then
+        echo "==> WARNING: ${pkg} build failed - skipping."
+        continue
+    fi
 
     rm -f "${REPO_DIR}/${pkg}-"*.pkg.tar.zst
     cp "${BUILD_DIR}/${pkg}/"*.pkg.tar.zst "${REPO_DIR}/"

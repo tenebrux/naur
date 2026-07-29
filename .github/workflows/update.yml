@@ -30,10 +30,7 @@ jobs:
       - name: Clean stale packages
         run: rm -rf x86_64 && mkdir -p x86_64
 
-      - name: Set custom domain
-        run: echo "pkgs.tenebrux.com" > x86_64/CNAME
-
-      - name: Fetch FynxLabs release packages
+      - name: Fetch tenebrux release packages
         run: ./mise/tasks/fetch --force
 
       - name: Build AUR packages (nody-greeter, shikai-theme)
