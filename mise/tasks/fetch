@@ -55,7 +55,7 @@ download_release() {
 
     local tmpdir
     tmpdir=$(mktemp -d)
-    trap "rm -rf ${tmpdir}" RETURN
+    trap 'rm -rf "$tmpdir"' RETURN
 
     local filename
     filename=$(basename "${asset_url}")
@@ -103,7 +103,9 @@ download_release() {
         cp "${downloaded}" "${REPO_DIR}/"
     fi
 
-    echo "    Stored: $(ls "${REPO_DIR}/${pkgname}-"*.pkg.tar.zst | head -1 | xargs basename)"
+    local stored
+    stored=$(find "${REPO_DIR}" -maxdepth 1 -name "${pkgname}-*.pkg.tar.zst" -print -quit)
+    echo "    Stored: $(basename "${stored}")"
 }
 
 # ── Download tenebrux packages ──────────────────────────────────────────────

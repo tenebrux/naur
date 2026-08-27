@@ -9,12 +9,12 @@ shellcheck = "latest"
 # ── Standard task verbs ────────────────────────────────────────────────────
 
 [tasks.start]
-description = "Fetch + build + publish in one shot (alias for update)"
+description = "Fetch packages and rebuild the local repository (alias for update)"
 depends = ["update"]
 
 [tasks.update]
-description = "Full pipeline: fetch all packages, rebuild db, publish to gh-pages"
-depends = ["fetch", "build", "publish"]
+description = "Fetch all packages and rebuild the local repository database"
+depends = ["fetch", "build"]
 
 [tasks.lint]
 description = "Run shellcheck on all task scripts"

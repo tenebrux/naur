@@ -47,14 +47,18 @@ mise install          # install tools
 mise run fetch        # download tenebrux release packages
 mise run fetch-aur    # build AUR packages (nody-greeter, shikai-theme)
 mise run build        # regenerate repo database (repo-add)
-mise run publish      # push to gh-pages branch (live site updates)
 # Or all at once:
 mise run update
 ```
 
+Production publishing is handled by the `Update Repo` GitHub Actions
+workflow. Run it manually from the Actions tab when an immediate deployment
+is needed; it also runs daily and after release dispatches.
+
 ## CI
 
-The `.github/workflows/update.yml` workflow rebuilds the repo:
+The `.github/workflows/update.yml` workflow rebuilds and deploys the repo with
+GitHub Pages:
 - **On schedule** (daily at 06:00 UTC) — catches new releases automatically
 - **On repository_dispatch** — triggered by dusk/umbra/ember release workflows
 - **Manually** — via GitHub Actions "Run workflow" button
