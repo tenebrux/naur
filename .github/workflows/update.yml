@@ -30,20 +30,21 @@ jobs:
       - name: Clean stale packages
         run: rm -rf x86_64 && mkdir -p x86_64
 
-      - name: Fetch tenebrux release packages
+      - name: Fetch passthrough packages
         run: ./mise/tasks/fetch --force
 
-      - name: Build AUR packages (nody-greeter, shikai-theme)
-        run: |
-          docker run --rm -v "$PWD/x86_64:/out" -v "$PWD/mise/tasks:/tasks" archlinux:latest bash /tasks/fetch-aur-docker
-
-      - name: Build repo database (repo-add)
+      - name: Build and verify repo database
         run: |
           docker run --rm -v "$PWD/x86_64:/out" archlinux:latest bash -c '
+            set -euo pipefail
             cd /out
             rm -f naur.{db,files}{,.tar.gz,.tar.gz.old}
             repo-add "naur.db.tar.gz" *.pkg.tar.zst
-            echo "==> $(ls *.pkg.tar.zst | wc -l) packages in repo"
+            test -e naur.db
+            test -e naur.files
+            bsdtar -tf naur.db >/dev/null
+            bsdtar -xOf naur.db "*/desc" | grep -qx rwr
+            echo "==> verified $(find . -maxdepth 1 -name "*.pkg.tar.zst" | wc -l) package(s) in repo"
           '
 
       - name: Setup Pages

@@ -2,9 +2,8 @@
 
 > naur, not the aur.
 
-Pacman repository for tenebrux/Tenebrux packages, hosted on GitHub Pages.
-Serves pre-built packages so installs and updates never depend on the AUR at
-install time or a single third-party server.
+Small Pacman passthrough repository hosted on GitHub Pages. It republishes
+validated release packages under a stable Pacman endpoint.
 
 ## Usage
 
@@ -13,39 +12,32 @@ Add to `/etc/pacman.conf`:
 ```ini
 [naur]
 SigLevel = Optional TrustAll
-Server = https://tenebrux.github.io/naur/$arch/
+Server = https://pkgs.tenebrux.com
 ```
 
 Then:
 
 ```bash
 sudo pacman -Sy
-sudo pacman -S dusk umbra ember rwr nody-greeter shikai-theme
+sudo pacman -S rwr
 ```
 
 ## What's in the repo
 
 | Package | Source | Why it's here |
 |---------|--------|---------------|
-| `dusk` | github.com/tenebrux/dusk releases | Panel — no AUR package |
-| `umbra` | github.com/tenebrux/umbra releases | Installer — no AUR package |
-| `ember` | github.com/tenebrux/ember releases | Clipboard/notifications — no AUR package |
-| `rwr` | github.com/FynxLabs/rwr releases | Config management — no AUR package |
-| `shikai-theme` | AUR (rebuilt) | Greeter theme — pre-built so installs don't need yay/AUR at install time |
+| `rwr` | github.com/FynxLabs/rwr releases | Stable package endpoint for post-install setup |
 
-> **xlibre** packages are NOT mirrored here — they live in their own repo at
-> `x11libre.net/repo/arch_based/`. Tenebrux's pacman.conf points directly at
-> `[xlibre]` for X server packages.
->
-> **nody-greeter** is too large (100MB+) for git/GitHub Pages. It gets built
-> into the Tenebrux ISO's local `[tenebrux-aur]` repo at ISO build time instead.
+Naur does not currently mirror private Tenebrux repositories or build AUR
+packages. Dusk, Umbra, and the installer-only helper packages are bundled by
+the Tenebrux ISO until they have a public release source or Naur receives a
+dedicated read-only release token.
 
 ## Updating the repo
 
 ```bash
 mise install          # install tools
-mise run fetch        # download tenebrux release packages
-mise run fetch-aur    # build AUR packages (nody-greeter, shikai-theme)
+mise run fetch        # download required stable release packages
 mise run build        # regenerate repo database (repo-add)
 # Or all at once:
 mise run update
@@ -60,13 +52,12 @@ is needed; it also runs daily and after release dispatches.
 The `.github/workflows/update.yml` workflow rebuilds and deploys the repo with
 GitHub Pages:
 - **On schedule** (daily at 06:00 UTC) — catches new releases automatically
-- **On repository_dispatch** — triggered by dusk/umbra/ember release workflows
+- **On repository_dispatch** — available for future release publishers
 - **Manually** — via GitHub Actions "Run workflow" button
 
 ## Architecture support
 
-- `x86_64` — primary, fully supported
-- `aarch64` — scaffolded; packages added as arm64 releases become available
+- `x86_64` — supported
 
 ## License
 

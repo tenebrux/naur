@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Download tenebrux release packages (dusk, umbra, ember, rwr) into x86_64/"
+#MISE description="Download required passthrough release packages into x86_64/"
 
 set -euo pipefail
 
@@ -9,24 +9,26 @@ mkdir -p "${REPO_DIR}"
 
 FORCE="${1:-}"
 
-# ── Helper: find the latest release asset via the public REST API ───────────
-# Uses curl + jq (no gh CLI, no GITHUB_TOKEN needed for public repos).
+# ── Helper: find the latest public release asset ────────────────────────────
+# Uses curl + jq so scheduled publishing needs no repository credential.
 # Returns the browser_download_url of the asset matching the glob pattern.
 find_asset_url() {
     local repo="$1" pattern="$2"
 
-    # Try latest stable release first, then fall back to all releases.
-    # The API endpoint /releases/latest only returns non-prerelease tags.
     local releases_json
-    releases_json=$(curl -fsSL "https://api.github.com/repos/${repo}/releases?per_page=10" 2>/dev/null || \
-                    curl -fsSL "https://api.github.com/repos/${repo}/releases" 2>/dev/null || \
-                    echo '[]')
+    releases_json=$(curl -fsSL "https://api.github.com/repos/${repo}/releases?per_page=10")
 
-    # Find the first release with an asset matching the pattern.
-    # Pattern uses shell glob syntax (* matches anything).
-    echo "${releases_json}" | jq -r --arg pat "${pattern}" '
-        .[].assets[] | select(.name | test($pat | gsub("[*]"; ".*") | "^" + . + "$")) | .browser_download_url
-    ' | head -1
+    # GitHub returns newest first. Use Bash's glob matcher so dots and other
+    # filename characters are treated literally, and exclude draft/nightly
+    # releases from the stable Pacman endpoint.
+    while IFS=$'\t' read -r name url; do
+        # shellcheck disable=SC2053 # pattern is intentionally a caller-supplied glob
+        if [[ "${name}" == ${pattern} ]]; then
+            echo "${url}"
+            return 0
+        fi
+    done < <(echo "${releases_json}" | jq -r \
+        '.[] | select(.draft == false and .prerelease == false) | .assets[] | [.name, .browser_download_url] | @tsv')
 }
 
 # ── Helper: download and fix pkgver ─────────────────────────────────────────
@@ -37,7 +39,7 @@ download_release() {
 
     echo "==> ${pkgname}: fetching from ${repo}..."
 
-    # Skip if already present (unless --force)
+    # Skip if already present (unless --force).
     if [ -z "${FORCE}" ] && compgen -G "${REPO_DIR}/${pkgname}-*.pkg.tar.zst" >/dev/null 2>&1; then
         echo "    Already present, skipping (use --force to re-download)"
         return 0
@@ -46,9 +48,8 @@ download_release() {
     local asset_url
     asset_url=$(find_asset_url "${repo}" "${pattern}")
     if [ -z "${asset_url}" ]; then
-        echo "    WARNING: No release asset matching '${pattern}' found in ${repo}"
-        echo "    (the package may not have a release yet — skipping)"
-        return 0
+        echo "ERROR: Required asset '${pattern}' not found in ${repo}" >&2
+        return 1
     fi
 
     echo "    Downloading: ${asset_url}"
@@ -67,51 +68,77 @@ download_release() {
         return 1
     fi
 
-    # Fix nfpm-style pkgver (dashes break pacman DB parsing)
+    # Validate the downloaded archive before touching the published package.
+    local actual_pkgname actual_arch
+    actual_pkgname=$(bsdtar -xOf "${downloaded}" .PKGINFO | awk -F' = ' '/^pkgname/{print $2}')
+    actual_arch=$(bsdtar -xOf "${downloaded}" .PKGINFO | awk -F' = ' '/^arch/{print $2}')
+    if [[ "${actual_pkgname}" != "${pkgname}" ]]; then
+        echo "ERROR: Asset contains pkgname=${actual_pkgname}, expected ${pkgname}" >&2
+        return 1
+    fi
+    if [[ "${actual_arch}" != "x86_64" && "${actual_arch}" != "any" ]]; then
+        echo "ERROR: Asset contains unsupported arch=${actual_arch}" >&2
+        return 1
+    fi
+
+    # Normalize nfpm pkgver strings and filenames for pacman/repo-add.
     local pkgver
-    pkgver=$(tar --zstd -xOf "${downloaded}" .PKGINFO 2>/dev/null | awk -F' = ' '/^pkgver/{print $2}')
+    pkgver=$(bsdtar -xOf "${downloaded}" .PKGINFO 2>/dev/null | awk -F' = ' '/^pkgver/{print $2}')
     if [ -z "${pkgver}" ]; then
         echo "ERROR: Failed to read pkgver from ${downloaded}"
         return 1
     fi
 
-    # Only fix if pkgver contains a dash (nfpm edge-xxx-1 style)
-    if [[ "${pkgver}" == *-* ]]; then
-        local pkgrel="${pkgver##*-}"
-        local pkgver_only="${pkgver%-*}"
-        local pkgver_clean="${pkgver_only//-/.}"
-        local pkgver_full="${pkgver_clean}-${pkgrel}"
-
-        echo "    Rewriting pkgver: ${pkgver} -> ${pkgver_full}"
-
-        local workdir="${tmpdir}/fix"
-        mkdir -p "${workdir}"
-        bsdtar -xf "${downloaded}" -C "${workdir}"
-        sed -i "s|^pkgver = .*|pkgver = ${pkgver_full}|" "${workdir}/.PKGINFO"
-
-        local out="${REPO_DIR}/${pkgname}-${pkgver_full}-x86_64.pkg.tar.zst"
-        rm -f "${REPO_DIR}/${pkgname}-"*.pkg.tar.zst
-
-        local payload=()
-        for entry in "${workdir}"/*; do
-            [ -e "$entry" ] || continue
-            payload+=("$(basename "$entry")")
-        done
-        (cd "${workdir}" && bsdtar --zstd -cf "${out}" .PKGINFO .MTREE "${payload[@]}")
-    else
-        rm -f "${REPO_DIR}/${pkgname}-"*.pkg.tar.zst
-        cp "${downloaded}" "${REPO_DIR}/"
+    if [[ "${pkgver}" != *-* ]]; then
+        echo "ERROR: Package pkgver=${pkgver} has no pkgrel component" >&2
+        return 1
     fi
+    local pkgrel="${pkgver##*-}"
+    local pkgver_only="${pkgver%-*}"
+    local pkgver_clean="${pkgver_only//-/.}"
+    local pkgver_full="${pkgver_clean}-${pkgrel}"
+    local workdir="${tmpdir}/normalized"
+    mkdir -p "${workdir}"
+    bsdtar -xf "${downloaded}" -C "${workdir}"
+    sed "s|^pkgver = .*|pkgver = ${pkgver_full}|" "${workdir}/.PKGINFO" > "${workdir}/.PKGINFO.new"
+    mv "${workdir}/.PKGINFO.new" "${workdir}/.PKGINFO"
+
+    # The PKGINFO rewrite changes its digest; regenerate MTREE so pacman -Qkk
+    # reports a clean package after installation.
+    local mtree_tmp
+    mtree_tmp=$(mktemp)
+    (
+        cd "${workdir}"
+        find . -mindepth 1 ! -name .MTREE -print0 | LC_ALL=C sort -z | \
+            bsdtar -cnf - --format=mtree \
+                --uid 0 --gid 0 \
+                --options='!all,use-set,type,uid,gid,mode,time,size,md5,sha256,link' \
+                --null -T - | gzip -c -f -n > "${mtree_tmp}"
+    )
+    mv "${mtree_tmp}" "${workdir}/.MTREE"
+    chmod 0644 "${workdir}/.MTREE"
+
+    local staged="${tmpdir}/${pkgname}-${pkgver_full}-${actual_arch}.pkg.tar.zst"
+    local payload=()
+    for entry in "${workdir}"/*; do
+        [ -e "$entry" ] || continue
+        payload+=("$(basename "$entry")")
+    done
+    local metadata=(.PKGINFO .MTREE)
+    [[ -f "${workdir}/.BUILDINFO" ]] && metadata=(.BUILDINFO "${metadata[@]}")
+    (cd "${workdir}" && bsdtar --zstd -cf "${staged}" --uid 0 --gid 0 "${metadata[@]}" "${payload[@]}")
+
+    rm -f "${REPO_DIR}/${pkgname}-"*.pkg.tar.zst
+    mv "${staged}" "${REPO_DIR}/"
 
     local stored
     stored=$(find "${REPO_DIR}" -maxdepth 1 -name "${pkgname}-*.pkg.tar.zst" -print -quit)
     echo "    Stored: $(basename "${stored}")"
 }
 
-# ── Download tenebrux packages ──────────────────────────────────────────────
-download_release "tenebrux/dusk"  "dusk_*_linux_amd64.pkg.tar.zst"  "dusk"
-download_release "tenebrux/umbra" "umbra_*_linux_amd64.pkg.tar.zst" "umbra"
-download_release "tenebrux/ember" "ember_*_linux_amd64.pkg.tar.zst" "ember"
-download_release "FynxLabs/rwr"   "rwr_*_linux_amd64.pkg.tar.zst"   "rwr"
+# Naur is deliberately a clean public-release passthrough. Private Tenebrux
+# repositories cannot be fetched by this repository's scoped Actions token;
+# add them only after they publish publicly or a dedicated read token exists.
+download_release "FynxLabs/rwr" "rwr_*_linux_amd64.pkg.tar.zst" "rwr"
 
-echo "==> tenebrux packages fetched."
+echo "==> Required passthrough packages fetched."
